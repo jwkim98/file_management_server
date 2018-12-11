@@ -9,7 +9,6 @@ using System.Timers;
 
 namespace Server
 {
-
     public class ServerProcessManager //Should be made when connection is newely established
     {
         private readonly List<ServerProcess> _processList = new List<ServerProcess>();
@@ -19,7 +18,7 @@ namespace Server
         private const int InitializeTimerInterval = 60000;
 
         private readonly User _user;
-        internal bool Activated { get; private set; }
+        private bool Activated { get; set; }
 
         internal ServerProcessManager(User user, Communicator communicator)
         {
@@ -27,11 +26,13 @@ namespace Server
             _serverCommunicator = communicator;
             Activated = false;
         }
-        internal void SetSocket(Socket socket)
+
+        private void SetSocket(Socket socket)
         {
             _user.SetUserSocket(socket);
             _serverCommunicator.SetUser(_user);
-        }//Sets socket for the communicator
+        } //Sets socket for the communicator
+
         private void AddProcess(ServerProcess serverProcess)
         {
             lock (_processList)
@@ -40,6 +41,7 @@ namespace Server
                 _processList.Sort((x, y) => x.Pid.CompareTo(y.Pid)); //sorts processList by Pid
             }
         }
+
         private ServerProcess GetProcess(byte processId)
         {
             ServerProcess process;
@@ -49,11 +51,16 @@ namespace Server
             }
             return process;
         }
+
         public ServerProcessManager(uint userId)
         {
             _user = new User(userId);
         }
-
+        
+        /**
+         * Processor methods for various operations
+         * 
+         */
         public void ProcessUserId(byte processId, Packet idReqestPacket)
         {
             ServerProcess idProcess = new IdProcess(_user, _processList, processId);
@@ -72,10 +79,10 @@ namespace Server
             fileProcess.EnqueueProcessQueue(fileRequestPacket);
         }
 
-        private void ProcessFileSave(byte processId, Packet fileInfoPacket)
+        public void ProcessFileSave(byte processId, Packet fileInfoPacket)
         {
             ServerProcess fileSaveProcess = new FileSaveProcess(_user, _processList, processId);
-            Thread saveFileThread=new Thread(fileSaveProcess.StartFileSaveProcess);
+            Thread saveFileThread = new Thread(fileSaveProcess.StartFileSaveProcess);
             AddProcess(fileSaveProcess);
             saveFileThread.Start();
             fileSaveProcess.EnqueueProcessQueue(fileInfoPacket);
@@ -89,32 +96,37 @@ namespace Server
             checkTimer.Elapsed += CheckTimerCallback;
             initializeTimer.Start();
             Packet packet;
-            while ((packet = GetPacket(checkTimer,initializeTimer)) != null)
+            while ((packet = GetPacket(checkTimer, initializeTimer)) != null)
             {
-                if (packet.RequestType == (byte) PacketType.FileRequest)
+                switch (packet.RequestType)
                 {
-                    byte processId = packet.ProcessId;
-                    ProcessFile(processId, packet);
-                }
-
-                if (packet.RequestType == (byte) PacketType.IdRequest)
-                {
-                    byte processId = packet.ProcessId;
-                    ProcessUserId(processId, packet);
-                }
-
-                if (packet.RequestType == (byte) PacketType.FileInfo)
-                {
-                    byte processId = packet.ProcessId;
-                    ProcessFileSave(processId, packet);
-                }
-
-                if (packet.RequestType == (byte) PacketType.File)
-                {
-                    ServerProcess process = GetProcess(packet.ProcessId);
-                    process.EnqueueProcessQueue(packet);
+                    case (byte) PacketType.FileRequest:
+                    {
+                        byte processId = packet.ProcessId;
+                        ProcessFile(processId, packet);
+                        break;
+                    }
+                    case (byte) PacketType.IdRequest:
+                    {
+                        byte processId = packet.ProcessId;
+                        ProcessUserId(processId, packet);
+                        break;
+                    }
+                    case (byte) PacketType.FileInfo:
+                    {
+                        byte processId = packet.ProcessId;
+                        ProcessFileSave(processId, packet);
+                        break;
+                    }
+                    case (byte) PacketType.File:
+                    {
+                        ServerProcess process = GetProcess(packet.ProcessId);
+                        process.EnqueueProcessQueue(packet);
+                        break;
+                    }
                 }
             }
+
             checkTimer.Stop();
             Activated = false;
         }
@@ -149,14 +161,14 @@ namespace Server
             {
                 Data = new byte[1],
                 DataSize = 1,
-                FileType = (byte)FileType.NoFile,
+                FileType = (byte) FileType.NoFile,
                 MorePackets = false,
                 PacketNumber = 0,
                 ProcessId = 0,
-                RequestType = (byte)PacketType.Suspend
+                RequestType = (byte) PacketType.Suspend
             };
             MakePacketHeader(timeoutSuspendPacket);
-            timeoutSuspendPacket.Data[0] = (byte)ErrorType.ConnectionCheckFailed;
+            timeoutSuspendPacket.Data[0] = (byte) ErrorType.ConnectionCheckFailed;
             _user.EnqueueReceive(timeoutSuspendPacket);
             _serverCommunicator.OperationState = false;
         }
@@ -189,16 +201,17 @@ namespace Server
         private static void MakePacketHeader(Packet packet)
         {
             packet.Header[HeaderMemberStartIndex.HeaderSign] = PacketConsts.HeaderSign;
-            packet.Header[HeaderMemberStartIndex.PacketNum] = (byte)(packet.PacketNumber & 0xFF);
-            packet.Header[HeaderMemberStartIndex.PacketNum + 1] = (byte)(packet.PacketNumber >> 8);
+            packet.Header[HeaderMemberStartIndex.PacketNum] = (byte) (packet.PacketNumber & 0xFF);
+            packet.Header[HeaderMemberStartIndex.PacketNum + 1] = (byte) (packet.PacketNumber >> 8);
             packet.Header[HeaderMemberStartIndex.RequestType] = packet.RequestType;
-            packet.Header[HeaderMemberStartIndex.DataSize] = (byte)(packet.DataSize & 0xFF);
-            packet.Header[HeaderMemberStartIndex.DataSize + 1] = (byte)((packet.DataSize >> 8) & 0xFF);
-            packet.Header[HeaderMemberStartIndex.DataSize + 2] = (byte)((packet.DataSize >> 16) & 0xFF);
-            packet.Header[HeaderMemberStartIndex.DataSize + 3] = (byte)((packet.DataSize >> 24) & 0xFF);
+            packet.Header[HeaderMemberStartIndex.DataSize] = (byte) (packet.DataSize & 0xFF);
+            packet.Header[HeaderMemberStartIndex.DataSize + 1] = (byte) ((packet.DataSize >> 8) & 0xFF);
+            packet.Header[HeaderMemberStartIndex.DataSize + 2] = (byte) ((packet.DataSize >> 16) & 0xFF);
+            packet.Header[HeaderMemberStartIndex.DataSize + 3] = (byte) ((packet.DataSize >> 24) & 0xFF);
             packet.Header[HeaderMemberStartIndex.FileType] = packet.FileType;
             packet.Header[HeaderMemberStartIndex.ProcessNum] = packet.ProcessId;
-            packet.Header[HeaderMemberStartIndex.EndPoint] = packet.MorePackets ? PacketConsts.MoreBytes : PacketConsts.LastByte;
+            packet.Header[HeaderMemberStartIndex.EndPoint] =
+                packet.MorePackets ? PacketConsts.MoreBytes : PacketConsts.LastByte;
         }
 
         internal void Start(Socket socket)
@@ -209,7 +222,7 @@ namespace Server
             Thread checkThread = new Thread(ConnectionChecker);
             Activated = true;
             checkThread.Start(); // TODO how will you stop this thread?
-            Analyzer();// program ends when Analyzer terminates
+            Analyzer(); // program ends when Analyzer terminates
         }
 
         internal static bool SuspendCommunicator(Communicator communicator)
@@ -223,7 +236,6 @@ namespace Server
 
                 if (communicator.UserToken.ClientSocket != null)
                 {
-
                     try
                     {
                         communicator.UserToken.ClientSocket.Shutdown(SocketShutdown.Both);
@@ -236,8 +248,10 @@ namespace Server
                     {
                         communicator.UserToken.ClientSocket.Disconnect(false);
                     }
+
                     communicator.UserToken.ClientSocket.Close(); //close the socket
                 }
+
                 return true;
             }
             catch
@@ -246,5 +260,4 @@ namespace Server
             }
         }
     }
-
 }

@@ -256,7 +256,7 @@ namespace Server
             fileInfoPacket.Data[6] = (byte) ((userId >> 16) & 0xFF);
             fileInfoPacket.Data[7] = (byte) ((userId >> 24) & 0xFF);
             fileInfoPacket.Data[8] = (byte)fileNameArray.Length;
-            for (int i = 0; i < fileNameArray.Length; i++)
+            for (var i = 0; i < fileNameArray.Length; i++)
             {
                 fileInfoPacket.Data[i + 9] = fileNameArray[i];
             }
@@ -271,11 +271,11 @@ namespace Server
  */
     internal class FileSaveProcess: ServerProcess
     {
-        internal int
+        private int
             ReceivedPacketCount
         {
             get;
-            private set;
+            set;
         }
         
         internal FileSaveProcess(User user, List<ServerProcess> processList, byte processNum)
@@ -308,7 +308,6 @@ namespace Server
 
             if (filePacket.RequestType == (byte)PacketType.FileInfo) //First Packet must be FileInfo
             {
- //             fileSize = BitConverter.ToUInt32(filePacket.Data, 0);
                 userId = BitConverter.ToUInt32(filePacket.Data, 4);
                 fileName = Encoding.ASCII.GetString(filePacket.Data, 9, filePacket.Data[8]);
                 fileType = (FileType)filePacket.FileType;
